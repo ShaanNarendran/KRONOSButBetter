@@ -1,0 +1,8 @@
+pandas
+ortools
+scikit-learn
+joblib
+flask
+flask-cors
+python-dotenv
+google-generativeai
