@@ -172,14 +172,56 @@ def run_simulation(start_day, initial_fleet_state, ai_model, feature_names, targ
         MANUAL_INPUTS_CALENDAR[int(day)] = override
 
     def shap_to_readable(features, shap_values, threshold=0.01):
+        # Human-readable feature labels
+        FEATURE_LABELS = {
+            "total_fleet_size": "Fleet Size",
+            "target_service_trains": "Trains in Service",
+            "avg_fleet_health": "Average Fleet Health",
+            "is_monsoon": "Monsoon Season",
+            "is_surge": "Surge Demand"
+        }
+
         explanations = []
         for feature, val in zip(features, shap_values):
+            label = FEATURE_LABELS.get(feature, feature)
+            
             if abs(val) < threshold:
-                explanations.append(f"{feature} has no effect")
+                explanations.append(f"{label} has minimal effect on the predicted cost.")
             else:
                 qualifier = "slightly" if abs(val) < 0.05 else "moderately" if abs(val) < 0.15 else "strongly"
                 direction = "increases" if val > 0 else "decreases"
-                explanations.append(f"{feature} {direction} predicted outcome by {abs(val):.2f} ({qualifier})")
+                
+                # Business-friendly contextual explanations
+                if feature == "total_fleet_size":
+                    if val > 0:
+                        msg = f"Having a larger {label} {qualifier} increases operational costs per km by {abs(val):.3f}"
+                    else:
+                        msg = f"Having a smaller {label} {qualifier} reduces operational costs per km by {abs(val):.3f}"
+                elif feature == "target_service_trains":
+                    if val > 0:
+                        msg = f"Running more {label} {qualifier} increases resource utilization costs by {abs(val):.3f}"
+                    else:
+                        msg = f"Running more {label} {qualifier} improves operational efficiency, reducing costs by {abs(val):.3f}"
+                elif feature == "avg_fleet_health":
+                    if val > 0:
+                        msg = f"Better {label} {qualifier} increases maintenance precision costs by {abs(val):.3f}"
+                    else:
+                        msg = f"Better {label} {qualifier} reduces operational risk and costs by {abs(val):.3f}"
+                elif feature == "is_monsoon":
+                    if val > 0:
+                        msg = f"{label} conditions {qualifier} increase operational challenges and costs by {abs(val):.3f}"
+                    else:
+                        msg = f"{label} conditions {qualifier} reduce operational complexity and costs by {abs(val):.3f}"
+                elif feature == "is_surge":
+                    if val > 0:
+                        msg = f"{label} periods {qualifier} increase utilization pressure and costs by {abs(val):.3f}"
+                    else:
+                        msg = f"{label} periods {qualifier} improve fleet utilization efficiency by {abs(val):.3f}"
+                else:
+                    # Fallback for unknown features
+                    msg = f"{label} {direction} predicted outcome by {abs(val):.3f} ({qualifier})"
+                
+                explanations.append(msg)
         return explanations
 
     for day in range(start_day, SIMULATION_MONTH_DAYS + 1):
@@ -212,11 +254,31 @@ def run_simulation(start_day, initial_fleet_state, ai_model, feature_names, targ
             if sv.ndim >= 2 and sv.shape[0] == 1:
                 sv = np.squeeze(sv, axis=0)
 
-            # Base SHAP explanation dictionary
+            # Human-readable output labels
+            OUTPUT_LABELS = {
+                "historical_cost_per_km": "COST PER_KM",
+                "historical_fatigue_factor": "FATIGUE FACTOR", 
+                "historical_branding_penalty": "BRANDING PENALTY",
+                "historical_target_mileage": "TARGET MILEAGE",
+                "historical_maint_threshold": "MAINTENANCE THRESHOLD"
+            }
+
+            # Human-readable feature labels (same as in shap_to_readable)
+            FEATURE_LABELS = {
+                "total_fleet_size": "Fleet Size",
+                "target_service_trains": "Trains in Service",
+                "avg_fleet_health": "Average Fleet Health",
+                "is_monsoon": "Monsoon Season",
+                "is_surge": "Surge Demand"
+            }
+
+            # Base SHAP explanation dictionary with enhanced context
             explanation = {
-                "output_name": targets[i],
+                "output_name": OUTPUT_LABELS.get(targets[i], targets[i]),
                 "base_value": float(explainer.expected_value) if np.isscalar(explainer.expected_value) else explainer.expected_value.tolist(),
                 "shap_values": sv.tolist(),
+                "feature_names": [FEATURE_LABELS.get(f, f) for f in feature_names],
+                "feature_values": [current_conditions[f] for f in feature_names],
                 "readable": shap_to_readable(feature_names, sv)
             }
             shap_explanations.append(explanation)
