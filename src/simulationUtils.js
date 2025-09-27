@@ -1,194 +1,309 @@
-// Utility functions to transform simulation log data for the UI
+import { useState } from 'react';
 
-export const transformFleetData = (simulationData, selectedDay) => {
-  if (!simulationData || !selectedDay) return [];
-  
-  // Find the data for the selected day
-  const dayData = simulationData.find(entry => entry.day === selectedDay);
-  if (!dayData) return [];
-  
-  // Transform the fleet_status_today data to match the UI format
-  return dayData.fleet_status_today.map(train => {
-    // Calculate health score based on various factors
-    const healthScore = calculateHealthScore(train);
+// Constants
+const API_BASE_URL = 'http://localhost:5001';
+
+// Main simulation data loading function
+export const loadSimulationData = async () => {
+  // Try to get existing simulation data first, fallback to local JSON if it fails
+  try {
+    console.log('Attempting to load existing simulation data from API...');
+    const response = await fetch(`${API_BASE_URL}/get_simulation_data`);
     
-    // Determine status based on plan assignment
-    let status = 'Unknown';
-    if (dayData.plan.SERVICE.includes(train.train_id)) {
-      status = 'Service';
-    } else if (dayData.plan.MAINTENANCE.includes(train.train_id)) {
-      status = 'Maintenance';
-    } else if (dayData.plan.STANDBY.includes(train.train_id)) {
-      status = 'Standby';
+    if (response.ok) {
+      const result = await response.json();
+      if (result.status === 'success' && result.data) {
+        console.log('Successfully loaded simulation data from API:', result.data.length, 'days');
+        return result.data;
+      }
     }
     
+    console.log('No existing simulation data found, running new simulation...');
+    const simResponse = await fetch(`${API_BASE_URL}/run_full_simulation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!simResponse.ok) {
+      throw new Error(`API failed with status: ${simResponse.status}`);
+    }
+
+    const simResult = await simResponse.json();
+    if (simResult.status === 'error') {
+      throw new Error(simResult.message);
+    }
+    
+    console.log('Successfully generated simulation data from API:', simResult.data?.length || 0, 'days');
+    return simResult.data || [];
+  } catch (error) {
+    console.error('Failed to load simulation from API:', error);
+    console.log('Falling back to local JSON file...');
+    
+    try {
+      const response = await fetch('/simulation_log.json');
+      if (!response.ok) {
+        throw new Error('Failed to load simulation data');
+      }
+      const data = await response.json();
+      console.log('Successfully loaded simulation data from JSON:', data.length, 'days');
+      return data;
+    } catch (fallbackError) {
+      console.error('Error loading fallback simulation data:', fallbackError);
+      return [];
+    }
+  }
+  
+  // TODO: Re-enable API calls once backend CORS is fixed
+  /*
+  try {
+    const response = await fetch(`${API_BASE_URL}/run_full_simulation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Simulation failed');
+    }
+
+    const result = await response.json();
+    if (result.status === 'error') {
+      throw new Error(result.message);
+    }
+    
+    return result.data || [];
+  } catch (error) {
+    console.error('Failed to load simulation from API:', error);
+    // Fallback to local JSON file
+    try {
+      const response = await fetch('/simulation_log.json');
+      if (!response.ok) {
+        throw new Error('Failed to load fallback simulation data');
+      }
+      return await response.json();
+    } catch (fallbackError) {
+      console.error('Error loading fallback simulation data:', fallbackError);
+      return [];
+    }
+  }
+  */
+};
+
+// Rerun simulation from a specific day
+export const rerunSimulation = async (startDay, overrides = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/rerun_from_day`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        start_day: startDay,
+        manual_overrides: overrides
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Rerun failed');
+    }
+
+    const result = await response.json();
+    if (result.status === 'error') {
+      throw new Error(result.message);
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Failed to rerun simulation:', error);
+    return null;
+  }
+};
+
+// Fetch XAI explanations from the backend
+export const fetchExplanations = async () => {
+  try {
+    console.log('Fetching AI explanations from backend...');
+    const response = await fetch(`${API_BASE_URL}/get_explanations`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch explanations: ${response.status}`);
+    }
+    const result = await response.json();
+    if (result.status === 'error') {
+      throw new Error(result.message);
+    }
+    console.log('Successfully fetched explanations:', result.data?.length || 0, 'days');
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching explanations:', error);
+    console.log('Falling back to empty explanations');
+    return [];
+  }
+};
+
+// Transform raw fleet data for UI display
+export const transformFleetData = (simulationData, selectedDay) => {
+  if (!simulationData || simulationData.length === 0) {
+    console.log('No simulation data available');
+    return [];
+  }
+
+  const dayData = simulationData.find(d => d.day === selectedDay);
+  if (!dayData) {
+    console.log(`No data found for day ${selectedDay}`);
+    return [];
+  }
+
+  // Handle both old and new data formats
+  const fleetData = dayData.fleet_status_today || dayData.fleet_status_after;
+  if (!fleetData || !Array.isArray(fleetData)) {
+    console.log('No fleet data available for day', selectedDay);
+    return [];
+  }
+
+  console.log(`Transforming ${fleetData.length} trains for day ${selectedDay}`);
+
+  return fleetData.map(train => {
+    // Calculate a simple health score if not provided
+    const healthScore = train.health_score || calculateSimpleHealthScore(train);
+    
+    // Determine status from plan
+    let status = 'Standby';
+    if (dayData.plan?.SERVICE?.includes(train.train_id)) {
+      status = 'Service';
+    } else if (dayData.plan?.MAINTENANCE?.includes(train.train_id)) {
+      status = 'Maintenance';
+    }
+
     return {
       id: train.train_id,
-      healthScore: Math.round(healthScore),
       status: status,
+      healthScore: Math.round(healthScore),
       details: {
         fitnessCertificates: {
           status: train.is_cert_expired ? 'Expired' : 'Valid',
-          expires: train.cert_telecom_expiry
+          expires: train.cert_telecom_expiry || 'Unknown'
         },
         jobCardStatus: {
-          status: train.job_card_status,
+          status: train.job_card_status || 'CLOSED',
           openJobs: train.job_card_status === 'OPEN' ? 1 : 0,
-          details: train.job_card_priority !== 'NONE' ? train.job_card_priority : 'No open jobs'
+          details: train.job_card_priority || 'NONE'
         },
         brandingPriority: {
-          level: train.branding_sla_active ? 'High' : 'Low',
-          contract: train.branding_sla_active ? 'Active Contract' : 'None',
-          exposureNeeded: train.branding_sla_active 
-            ? `${train.target_hours - train.current_hours} hrs remaining`
-            : 'N/A'
+          level: train.branding_sla_active ? 'High' : 'Normal',
+          contract: train.branding_sla_active ? 'Active' : 'None',
+          exposureNeeded: train.target_hours ? `${train.target_hours}h needed` : 'N/A'
         },
         mileageBalancing: {
-          deviation: train.current_km - (train.target_km * 0.5), // Assuming 50% of target as baseline
-          unit: 'km',
-          status: getMileageStatus(train.current_km, train.target_km)
+          status: (train.current_km || 0) > 55000 ? 'High' : 'Balanced',
+          deviation: Math.abs(50000 - (train.current_km || 0)),
+          unit: 'km'
         },
         cleaningDetailing: {
-          lastCleaned: train.last_cleaned_date,
-          status: getCleaningStatus(train.last_cleaned_date)
+          status: 'Clean',
+          lastCleaned: train.last_cleaned_date || 'Unknown'
         },
         stablingGeometry: {
-          bay: `Bay ${train.stabling_shunt_moves + 1}`, // Simple bay assignment
-          turnoutTime: `${train.stabling_shunt_moves * 2 + 3} mins`
-        },
-        // Additional details from simulation data
-        consecutiveServiceDays: train.consecutive_service_days,
-        totalServiceDaysMonth: train.total_service_days_month,
-        totalMaintenanceDaysMonth: train.total_maintenance_days_month,
-        brakeModel: train.brake_model,
-        kmSinceLastService: train.km_since_last_service,
-        bogieLastServiceKm: train.bogie_last_service_km
+          bay: `Bay ${(train.stabling_shunt_moves || 0) + 1}`,
+          turnoutTime: `${(train.stabling_shunt_moves || 0) * 5} min`
+        }
       }
     };
   });
 };
 
-const calculateHealthScore = (train) => {
-  let score = train.health_score || 100;
+// Simple health score calculation for fallback
+function calculateSimpleHealthScore(train) {
+  let score = 100;
   
-  // Adjust based on certificate expiry
+  // Reduce score based on mileage
+  if (train.current_km) {
+    score -= Math.floor(train.current_km / 1000) * 2;
+  }
+  
+  // Reduce score if certificate expired
   if (train.is_cert_expired) {
+    score -= 30;
+  }
+  
+  // Reduce score for open job cards
+  if (train.job_card_status === 'OPEN') {
     score -= 20;
   }
   
-  // Adjust based on job card status
-  if (train.job_card_status === 'OPEN') {
-    score -= 10;
-  }
-  
-  // Adjust based on km since last service
-  if (train.km_since_last_service > 2000) {
-    score -= 5;
-  }
-  
-  // Adjust based on cleaning
-  const daysSinceClean = getDaysSinceLastClean(train.last_cleaned_date);
-  if (daysSinceClean > 7) {
-    score -= 5;
-  }
-  
   return Math.max(0, Math.min(100, score));
-};
+}
 
-const getMileageStatus = (currentKm, targetKm) => {
-  const utilizationRate = currentKm / targetKm;
-  
-  if (utilizationRate < 0.3) {
-    return 'Under-utilized';
-  } else if (utilizationRate > 0.7) {
-    return 'Over-utilized';
-  } else {
-    return 'Balanced';
-  }
-};
-
-const getCleaningStatus = (lastCleanedDate) => {
-  const daysSince = getDaysSinceLastClean(lastCleanedDate);
-  
-  if (daysSince <= 3) {
-    return 'Clean';
-  } else if (daysSince <= 7) {
-    return 'Good';
-  } else {
-    return 'Due for Cleaning';
-  }
-};
-
-const getDaysSinceLastClean = (lastCleanedDate) => {
-  const today = new Date();
-  const cleanDate = new Date(lastCleanedDate);
-  const diffTime = Math.abs(today - cleanDate);
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
+// Get summary statistics for the fleet
 export const getFleetSummary = (simulationData, selectedDay) => {
-  if (!simulationData || !selectedDay) {
-    return {
-      total: 0,
-      service: 0,
-      maintenance: 0,
-      standby: 0,
-      scenario: 'Unknown'
-    };
-  }
-  
-  const dayData = simulationData.find(entry => entry.day === selectedDay);
-  if (!dayData) {
-    return {
-      total: 0,
-      service: 0,
-      maintenance: 0,
-      standby: 0,
-      scenario: 'Unknown'
-    };
-  }
+  const dayData = simulationData.find(d => d.day === selectedDay);
+  if (!dayData) return {
+    total: 0,
+    scenario: 'Normal',
+    inService: 0,
+    inMaintenance: 0,
+    onStandby: 0
+  };
+
+  // Handle both old and new data formats
+  const fleetData = dayData.fleet_status_after || dayData.fleet_status_today;
+  const total = fleetData ? fleetData.length : 0;
+  const inService = dayData.plan && dayData.plan.SERVICE ? dayData.plan.SERVICE.length : 0;
+  const inMaintenance = dayData.plan && dayData.plan.MAINTENANCE ? dayData.plan.MAINTENANCE.length : 0;
   
   return {
-    total: dayData.fleet_status_today.length,
-    service: dayData.plan.SERVICE.length,
-    maintenance: dayData.plan.MAINTENANCE.length,
-    standby: dayData.plan.STANDBY.length,
-    scenario: dayData.scenario
+    total,
+    scenario: dayData.scenario ? 
+      dayData.scenario.replace('_', ' ').replace(/\w\S*/g, 
+        txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+      ) : 'Normal',
+    inService,
+    inMaintenance,
+    onStandby: total - inService - inMaintenance
   };
 };
 
-export const getHealthDistribution = (fleetData) => {
-  if (!fleetData || fleetData.length === 0) {
-    return {
-      excellent: 0,
-      good: 0,
-      fair: 0,
-      poor: 0
-    };
-  }
-  
-  const distribution = fleetData.reduce((acc, train) => {
-    const score = train.healthScore;
-    if (score >= 90) acc.excellent++;
-    else if (score >= 75) acc.good++;
-    else if (score >= 60) acc.fair++;
-    else acc.poor++;
-    return acc;
-  }, { excellent: 0, good: 0, fair: 0, poor: 0 });
-  
-  return distribution;
-};
+// Custom hook for simulation data management
+export const useSimulation = () => {
+  const [simulationData, setSimulationData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-// Load simulation data from JSON file
-export const loadSimulationData = async () => {
-  try {
-    const response = await fetch('/simulation_log.json');
-    if (!response.ok) {
-      throw new Error('Failed to load simulation data');
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const data = await loadSimulationData();
+      setSimulationData(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Error loading simulation data:', error);
-    return [];
-  }
+  };
+
+  const rerunFromDay = async (day, overrides) => {
+    setLoading(true);
+    try {
+      const data = await rerunSimulation(day, overrides);
+      if (data) {
+        setSimulationData(data);
+        setError(null);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    simulationData,
+    loading,
+    error,
+    loadData,
+    rerunFromDay
+  };
 };

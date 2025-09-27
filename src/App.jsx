@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { FileText, UserCircle, AlertTriangle, X, Menu, Calendar, MessageCircle, List, Zap, ShieldCheck,Wrench, Wind } from 'lucide-react';
 import CalendarPicker from './CalendarPicker';
 import ChatbotModal from './ChatbotModal';
-import { transformFleetData, getFleetSummary, loadSimulationData } from './simulationUtils';
+import ExplainabilityModal from './ExplainabilityModal';
+import { transformFleetData, getFleetSummary, loadSimulationData, fetchExplanations } from './simulationUtils';
 
 // --- Sub-Components ---
 
-const Sidebar = ({ isOpen, onClose, onDatePrediction, onChatbot, onAllTrainsets }) => (
+const Sidebar = ({ isOpen, onClose, onDatePrediction, onChatbot, onAllTrainsets, onExplainability }) => (
   <div className={`fixed inset-y-0 left-0 z-50 w-80 bg-gradient-to-b from-gray-800 to-gray-900 shadow-2xl border-r border-gray-600 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
     <div className="p-6">
       <div className="flex justify-between items-center mb-8">
@@ -47,6 +48,17 @@ const Sidebar = ({ isOpen, onClose, onDatePrediction, onChatbot, onAllTrainsets 
           <div className="text-left">
             <div className="font-semibold">All Trainsets</div>
             <div className="text-sm text-gray-400">View all trainset health status</div>
+          </div>
+        </button>
+        
+        <button 
+          onClick={onExplainability}
+          className="w-full flex items-center gap-4 p-4 bg-gray-700/50 hover:bg-gray-700 rounded-xl transition-all duration-300 text-white hover:text-teal-300 group"
+        >
+          <FileText size={20} className="text-teal-400 group-hover:text-teal-300" />
+          <div className="text-left">
+            <div className="font-semibold">Explainability</div>
+            <div className="text-sm text-gray-400">View AI explanations</div>
           </div>
         </button>
       </div>
@@ -353,7 +365,9 @@ export default function App() {
   const [showDatePrediction, setShowDatePrediction] = useState(false);
   const [showAllTrainsets, setShowAllTrainsets] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
+  const [showExplainability, setShowExplainability] = useState(false);
   const [simulationData, setSimulationData] = useState([]);
+  const [explanations, setExplanations] = useState([]);
   const [selectedDay, setSelectedDay] = useState(1);
   const [loading, setLoading] = useState(true);
 
@@ -362,6 +376,11 @@ export default function App() {
       setLoading(true);
       const data = await loadSimulationData();
       setSimulationData(data);
+      
+      // Load AI explanations
+      const explanationsData = await fetchExplanations();
+      setExplanations(explanationsData);
+      
       setLoading(false);
     };
     fetchInitialData();
@@ -418,6 +437,10 @@ export default function App() {
           setSidebarOpen(false);
           setShowAllTrainsets(true);
         }}
+        onExplainability={() => {
+          setSidebarOpen(false);
+          setShowExplainability(true);
+        }}
       />
 
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />}
@@ -455,6 +478,12 @@ export default function App() {
       />
       <AllTrainsetsPage isOpen={showAllTrainsets} onClose={() => setShowAllTrainsets(false)} trains={fleet} />
       <ChatbotModal isOpen={showChatbot} onClose={() => setShowChatbot(false)} />
+      <ExplainabilityModal 
+        isOpen={showExplainability} 
+        onClose={() => setShowExplainability(false)} 
+        explanations={explanations}
+        selectedDay={selectedDay}
+      />
 
       <style jsx global>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

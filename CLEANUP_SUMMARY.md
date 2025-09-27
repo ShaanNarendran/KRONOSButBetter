@@ -1,17 +1,21 @@
-# 🎉 KRONOS Project Cleanup Complete!
+# KRONOS Cleanup Summary - KRONOSv3 Migration
 
-Your project has been fully streamlined and organized. Here's what was accomplished:
+## Files Removed (Old/Unused After KRONOSv3 Migration)
 
-## ✅ Files Removed
+### Backend Files
+- `backend/` - Old backend implementation (Flask API with static data)
+- `simple_backend.py` - Simple backend prototype (replaced by KRONOSv3)
 
-- `chatbot_debug.log` - Debug log file
-- `nohup.out` - Background process output
-- `fleet_status.csv` (root) - Moved to `backend/data/`
-- `simulation_log.json` (root) - Moved to `backend/data/`
-- `tempCodeRunnerFile.python` - Temporary code file
-- `test_chatbot.html` - Test HTML file
-- `RakeAssist.jsx` - Unused React component
-- Old duplicate README content
+### Data Files  
+- `public/simulation_log.json` - Static simulation data (now served by API)
+
+### Scripts
+- `setup-dev.sh` - Old development setup script
+- `start.sh` - Old application starter
+- `run_all.sh` - Old run script
+- `quick-start.sh` - Old quick start script  
+- `start_backend.sh` - Separate backend starter (now integrated)
+- `start_frontend.sh` - Separate frontend starter (now integrated)
 
 ## 📁 New File Structure
 

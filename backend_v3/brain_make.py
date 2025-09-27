@@ -4,13 +4,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 import joblib
 
-import os
-
 # --- 1. Configuration ---
-# Get the directory where the script is located
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-HISTORICAL_DATA_FILE = os.path.join(BASE_DIR, "data", "historical_data_retrain.csv")
-MODEL_OUTPUT_FILE = os.path.join(BASE_DIR, "models", "strategy_model.joblib")
+HISTORICAL_DATA_FILE = "historical_data_retrain.csv"
+MODEL_OUTPUT_FILE = "strategy_model.joblib"
 
 # --- 2. Load and Prepare Data ---
 print(f"Loading historical strategy data from '{HISTORICAL_DATA_FILE}'...")
@@ -60,4 +56,3 @@ print("AI Strategist training complete.")
 print(f"\nSaving the trained strategist model to '{MODEL_OUTPUT_FILE}'...")
 joblib.dump(multi_output_model, MODEL_OUTPUT_FILE)
 print("Model saved successfully.")
-

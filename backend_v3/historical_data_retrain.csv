@@ -354,4 +354,3 @@ total_fleet_size,target_service_trains,avg_fleet_health,is_monsoon,is_surge,hist
 30,25,90,1,1,10,750,68000,1400,50,88
 30,25,80,1,1,12,850,70000,1500,45,82
 30,25,70,1,1,16,950,65000,1600,40,75
-
