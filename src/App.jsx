@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, UserCircle, AlertTriangle, X, Menu, Calendar, List, Zap, ShieldCheck,Wrench, Wind } from 'lucide-react';
+import { FileText, UserCircle, AlertTriangle, X, Menu, Calendar, List, Zap, ShieldCheck,Wrench, Wind, Bot } from 'lucide-react';
 import CalendarPicker from './CalendarPicker';
 import ExplainabilityModal from './ExplainabilityModal';
+import AIChatModal from './AIChatModal';
 import { transformFleetData, getFleetSummary, loadSimulationData, fetchExplanations } from './simulationUtils';
 
 // --- Sub-Components ---
 
-const Sidebar = ({ isOpen, onClose, onDatePrediction, onAllTrainsets, onExplainability }) => (
+const Sidebar = ({ isOpen, onClose, onDatePrediction, onAllTrainsets, onExplainability, onAIChat }) => (
   <div className={`fixed inset-y-0 left-0 z-50 w-80 bg-gradient-to-b from-gray-800 to-gray-900 shadow-2xl border-r border-gray-600 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
     <div className="p-6">
       <div className="flex justify-between items-center mb-8">
@@ -47,6 +48,17 @@ const Sidebar = ({ isOpen, onClose, onDatePrediction, onAllTrainsets, onExplaina
           <div className="text-left">
             <div className="font-semibold">Explainability</div>
             <div className="text-sm text-gray-400">View AI explanations</div>
+          </div>
+        </button>
+        
+        <button 
+          onClick={onAIChat}
+          className="w-full flex items-center gap-4 p-4 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 border border-blue-400/30 rounded-xl transition-all duration-300 text-white hover:text-blue-300 group"
+        >
+          <Bot size={20} className="text-blue-400 group-hover:text-blue-300" />
+          <div className="text-left">
+            <div className="font-semibold">RakeAssist AI</div>
+            <div className="text-sm text-gray-400">Chat with AI co-pilot</div>
           </div>
         </button>
       </div>
@@ -353,6 +365,7 @@ export default function App() {
   const [showDatePrediction, setShowDatePrediction] = useState(false);
   const [showAllTrainsets, setShowAllTrainsets] = useState(false);
   const [showExplainability, setShowExplainability] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
   const [simulationData, setSimulationData] = useState([]);
   const [explanations, setExplanations] = useState([]);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -422,6 +435,10 @@ export default function App() {
           setSidebarOpen(false);
           setShowExplainability(true);
         }}
+        onAIChat={() => {
+          setSidebarOpen(false);
+          setShowAIChat(true);
+        }}
       />
 
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />}
@@ -463,6 +480,10 @@ export default function App() {
         onClose={() => setShowExplainability(false)} 
         explanations={explanations}
         selectedDay={selectedDay}
+      />
+      <AIChatModal 
+        isOpen={showAIChat} 
+        onClose={() => setShowAIChat(false)} 
       />
 
       <style jsx global>{`

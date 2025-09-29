@@ -13,7 +13,7 @@ from answer_final import (
 )
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 MASTER_LOG_FILE = "simulation_log_master.json"
 
 # Helper function to handle special number types for JSON
@@ -21,14 +21,21 @@ MASTER_LOG_FILE = "simulation_log_master.json"
 
 # Helper function to handle special number types for JSON
 def default_converter(o):
-    # Check for NumPy integers
-    if isinstance(o, (np.int64, np.int32)):
+    # Handle NumPy integers
+    if isinstance(o, (np.int64, np.int32, np.int16, np.int8)):
         return int(o)
-    # --- ADD THIS NEW PART ---
-    # Check for NumPy arrays
+    # Handle NumPy floats  
+    if isinstance(o, (np.float64, np.float32, np.float16)):
+        return float(o)
+    # Handle NumPy arrays
     if isinstance(o, np.ndarray):
-        return o.tolist() # Convert the array to a Python list
-    # --- END OF NEW PART ---
+        return o.tolist()
+    # Handle NumPy booleans
+    if isinstance(o, np.bool_):
+        return bool(o)
+    # Handle any other NumPy scalar types
+    if hasattr(o, 'item'):
+        return o.item()
     raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
 
@@ -49,11 +56,26 @@ def api_run_full_simulation():
         targets=targets
     )
     
-    with open(MASTER_LOG_FILE, 'w') as f:
-        json.dump(full_log, f, indent=2, default=default_converter)
+    with open(MASTER_LOG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(full_log, f, indent=2, default=default_converter, ensure_ascii=False)
         
     print(f"Full simulation complete. Log saved to {MASTER_LOG_FILE}")
-    return jsonify({"status": "success", "message": "Full simulation complete.", "data": full_log})
+    return jsonify({"status": "success", "message": "Full simulation complete."})
+
+
+@app.route('/get_simulation_data', methods=['GET'])
+def api_get_simulation_data():
+    if not os.path.exists(MASTER_LOG_FILE):
+        return jsonify({"status": "error", "message": "No simulation data found. Run a simulation first."}), 404
+        
+    try:
+        with open(MASTER_LOG_FILE, 'r') as f:
+            master_log = json.load(f)
+        return jsonify({"status": "success", "data": master_log})
+    except json.JSONDecodeError as e:
+        return jsonify({"status": "error", "message": f"Invalid JSON in log file: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/rerun_from_day', methods=['POST'])
@@ -96,49 +118,41 @@ def api_rerun_from_day():
     final_log = [item for item in master_log if item['day'] < start_day]
     final_log.extend(rerun_log_segment)
 
-    with open(MASTER_LOG_FILE, 'w') as f:
-        json.dump(final_log, f, indent=2, default=default_converter)
+    with open(MASTER_LOG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(final_log, f, indent=2, default=default_converter, ensure_ascii=False)
         
     print(f"Rerun from Day {start_day} complete. Master log updated.")
     return jsonify({"status": "success", "message": f"Rerun from Day {start_day} complete."})
 
 
-@app.route('/get_simulation_data', methods=['GET'])
-def api_get_simulation_data():
-    """Get existing simulation data without running a new simulation"""
-    if not os.path.exists(MASTER_LOG_FILE):
-        return jsonify({"status": "error", "message": "No simulation data available. Run a simulation first."}), 400
-
-    with open(MASTER_LOG_FILE, 'r') as f:
-        master_log = json.load(f)
-
-    return jsonify({"status": "success", "data": master_log})
-
 @app.route('/get_explanations', methods=['GET'])
 def api_get_explanations():
     if not os.path.exists(MASTER_LOG_FILE):
-        return jsonify({"status": "error", "message": "Master log file not found."}), 400
+        return jsonify({"status": "error", "message": "Master log file not found. Run a simulation first."}), 400
 
-    with open(MASTER_LOG_FILE, 'r') as f:
-        master_log = json.load(f)
+    try:
+        with open(MASTER_LOG_FILE, 'r', encoding='utf-8') as f:
+            master_log = json.load(f)
 
-    explanations = [
-        {
-            "day": entry["day"], 
-            "shap_explanations": entry["shap_explanations"],
-            "feature_names": entry.get("feature_names", []),
-            "feature_values": entry.get("feature_values", [])
-        }
-        for entry in master_log
-    ]
-    return jsonify({"status": "success", "data": explanations})
+        explanations = []
+        for entry in master_log:
+            if "shap_explanations" in entry and entry.get("shap_explanations"):
+                explanations.append({
+                    "day": entry["day"], 
+                    "shap_explanations": entry["shap_explanations"]
+                })
+        
+        if not explanations:
+            return jsonify({"status": "error", "message": "No SHAP explanations found in simulation data."}), 404
+            
+        return jsonify({"status": "success", "data": explanations})
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {e}")
+        return jsonify({"status": "error", "message": f"Corrupted simulation data. Please run a new simulation. Error: {str(e)}"}), 500
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return jsonify({"status": "error", "message": f"Server error: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
-    print("Starting KRONOS Flask Backend with CORS enabled...")
-    print("Available endpoints:")
-    print("  POST /run_full_simulation")
-    print("  GET  /get_simulation_data")
-    print("  POST /rerun_from_day") 
-    print("  GET  /get_explanations")
     app.run(host='0.0.0.0', port=5001, debug=True)
