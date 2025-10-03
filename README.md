@@ -37,6 +37,7 @@ KRONOS is an advanced fleet management system powered by AI optimization and mac
 
 ### One-Command Launch
 
+#### For macOS/Linux/Unix:
 ```bash
 # Clone the repository
 git clone https://github.com/ShaanNarendran/KRONOSButBetter.git
@@ -44,6 +45,16 @@ cd KRONOSButBetter
 
 # Launch KRONOS (handles everything automatically)
 ./launch_kronos.sh
+```
+
+#### For Windows:
+```batch
+# Clone the repository
+git clone https://github.com/ShaanNarendran/KRONOSButBetter.git
+cd KRONOSButBetter
+
+# Launch KRONOS (double-click or run in Command Prompt)
+launch_kronos.bat
 ```
 
 That's it! 🎉
@@ -56,8 +67,9 @@ That's it! 🎉
 
 ```
 KRONOSButBetter/
-├── 🚀 Launch Script
-│   └── launch_kronos.sh         # Complete application launcher
+├── 🚀 Launch Scripts
+│   ├── launch_kronos.sh         # Unix/macOS/Linux launcher
+│   └── launch_kronos.bat        # Windows launcher
 │
 ├── 🧠 AI Backend (KRONOSv3)
 │   ├── backend_v3/
@@ -151,7 +163,22 @@ KRONOS uses **SHAP (SHapley Additive exPlanations)** to make AI decisions transp
 - **Feature Engineering**: Domain-specific input processing
 - **Model Interpretability**: SHAP-based explanations
 
-## 📊 Use Cases
+## �️ Cross-Platform Support
+
+KRONOS runs on all major operating systems:
+
+- **macOS/Linux**: Use `./launch_kronos.sh`
+- **Windows**: Use `launch_kronos.bat` (double-click or run in Command Prompt)
+- **All Platforms**: Manual setup instructions provided for development
+
+Both launch scripts provide identical functionality:
+- ✅ Automatic virtual environment creation
+- ✅ Dependency installation (Python + Node.js)
+- ✅ Service startup and health checks
+- ✅ Graceful shutdown handling
+- ✅ User-friendly status messages
+
+## �📊 Use Cases
 
 ### Fleet Management Companies
 
